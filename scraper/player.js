@@ -25,8 +25,19 @@ export function parsePlayerPage(html, playerId) {
   const team = teamLink.text().trim() || null;
   const posPara = $('p').filter((i, el) => $(el).text().includes('Position:'));
   const position = posPara.length ? posPara.first().text().replace(/Position:\s*/i, '').split(/\s*▪/)[0].trim() : null;
-  const height = $('span[itemprop="height"]').text().trim() || null;
-  const weight = $('span[itemprop="weight"]').text().trim() || null;
+
+  // Height & weight: BR uses span[itemprop] or displays "6-9, 250lb (206cm, 113kg)" in a paragraph
+  let height = $('span[itemprop="height"]').first().text().trim() || null;
+  let weight = $('span[itemprop="weight"]').first().text().trim() || null;
+  if (!height || !weight) {
+    const posText = posPara.length ? posPara.first().text() : '';
+    const bodyText = posText + ' ' + $('p').map((i, el) => $(el).text()).get().join(' ');
+    const hwMatch = bodyText.match(/(\d-\d+(?:\.\d+)?)\s*,\s*(\d+)\s*lb/i);
+    if (hwMatch) {
+      if (!height) height = hwMatch[1].trim();           // e.g. "6-9"
+      if (!weight) weight = hwMatch[2].trim() + ' lb';  // e.g. "250 lb"
+    }
+  }
 
   // Summary stats (current season + career) from the summary section
   const summary = {};
