@@ -47,4 +47,39 @@ export async function getTeamStats(teamId, seasonOrOptions, options = {}) {
   return res.json();
 }
 
-export default { getPlayerStats, getTeamStats };
+/**
+ * List players from Postgres (after sync). Use this on your main site to display all players.
+ * @param {{ baseUrl?: string, limit?: number, offset?: number }} [options]
+ * @returns {Promise<{ players: Array, total: number, limit: number, offset: number }>}
+ */
+export async function getPlayersFromDB(options = {}) {
+  const { baseUrl = '', limit = 5000, offset = 0 } = options;
+  const base = (baseUrl || '').replace(/\/$/, '');
+  const url = base ? `${base}/api/players?limit=${limit}&offset=${offset}` : `/api/players?limit=${limit}&offset=${offset}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+/**
+ * Get one player from Postgres by Basketball Reference player id.
+ * @param {string} playerId - e.g. 'jamesle01'
+ * @param {{ baseUrl?: string }} [options]
+ * @returns {Promise<Object>} Player row from DB
+ */
+export async function getPlayerFromDB(playerId, options = {}) {
+  const base = (options.baseUrl || '').replace(/\/$/, '');
+  const url = base ? `${base}/api/players/${encodeURIComponent(playerId)}` : `/api/players/${encodeURIComponent(playerId)}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    if (res.status === 404) return null;
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export default { getPlayerStats, getTeamStats, getPlayersFromDB, getPlayerFromDB };

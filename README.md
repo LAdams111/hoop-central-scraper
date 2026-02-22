@@ -43,12 +43,52 @@ const team = await getTeamStats('LAL', 2025, { baseUrl: 'http://localhost:3001' 
 
 Copy `client/basketball-reference-client.js` into your project, or serve it and import from there.
 
+## Postgres (Railway) – store all NBA players
+
+With a Postgres database (e.g. in the same Railway project), the API can store every NBA player (height, weight, stats) and your main site can read from the DB.
+
+### 1. Create the table (once)
+
+In your Railway Postgres (Query tab or `psql`), run the SQL in **`db/schema.sql`** to create the `players` table.
+
+### 2. Set `DATABASE_URL`
+
+In Railway, add a Postgres plugin to your project and connect it to the scraper service. Railway will set `DATABASE_URL` (or `POSTGRES_URL`) automatically when you add the Postgres dependency to the service.
+
+### 3. Sync (automatic or manual)
+
+**Automatic (default):** When the scraper starts and `DATABASE_URL` is set, it will:
+- Run a full sync **15 seconds after startup** (so the DB is filled without you doing anything).
+- Run sync again **every 24 hours** so new/updated players are picked up.
+
+Optional env vars (e.g. in Railway Variables):
+- `AUTO_SYNC=false` – turn off auto-sync (you can still trigger via POST below).
+- `SYNC_DELAY_SECONDS=30` – delay before first sync on startup (default 15).
+- `SYNC_INTERVAL_HOURS=12` – run sync every 12 hours (default 24). Use `0` to only run once on startup.
+
+**Manual:** You can still trigger a sync anytime:
+- **POST** `/api/players/sync` – starts a background job (fetch all player IDs a–z, then 100 players at a time into Postgres).
+- **GET** `/api/players/sync/status` – returns `{ running, processed, total, errors, message }`.
+
+### 4. Main website: read from Postgres
+
+Your HoopCentral (or other) frontend should call the scraper API to get data from Postgres:
+
+- **GET** `/api/players?limit=100&offset=0` – list players (paginated). Response: `{ players, total, limit, offset }`. Each player has `player_id`, `name`, `team`, `position`, `height`, `weight`, `summary`, `per_game`, `url`, `updated_at`.
+- **GET** `/api/players/:playerId` – one player by Basketball Reference id (e.g. `jamesle01`).
+
+Use your scraper’s base URL (e.g. `https://your-scraper.up.railway.app`) as `baseUrl` when calling these from the main site.
+
 ## API endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/player/:playerId` | Player info + summary + per-game stats. Example: `/api/player/jamesle01` |
-| GET | `/api/team/:teamId/:season?` | Team info, record, roster + per-game. Example: `/api/team/LAL/2025` |
+| GET | `/api/players` | List players from DB (query: `limit`, `offset`) |
+| GET | `/api/players/:playerId` | One player from DB |
+| POST | `/api/players/sync` | Start full sync (100 at a time → Postgres) |
+| GET | `/api/players/sync/status` | Sync progress |
+| GET | `/api/player/:playerId` | Live scrape one player (no DB) |
+| GET | `/api/team/:teamId/:season?` | Team info, record, roster + per-game |
 | GET | `/api/health` | Health check |
 
 - **playerId**: Basketball Reference id (e.g. `jamesle01`, `curryst01`). Find it in the player’s URL.
