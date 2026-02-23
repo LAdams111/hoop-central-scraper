@@ -55,6 +55,8 @@ export async function upsertPlayer(row) {
       params
     );
   }
+  // Also write one row per season into player_stats
+  await upsertPlayerStats(row.playerId, row.perGame || []);
 }
 
 /** Get all players (optional pagination). Returns shape with per_game and url from raw_data. */
@@ -91,4 +93,58 @@ export async function getPlayerByPlayerId(playerId) {
 export async function countPlayers() {
   const r = await query('SELECT COUNT(*)::int AS count FROM "Player info"');
   return r.rows[0].count;
+}
+
+// --- player_stats table: one row per season per player (season-level stats) ---
+
+/** Map scraped per_game row to player_stats columns. */
+function mapPerGameToStats(playerId, row) {
+  const season = row.year_id ?? row.season ?? null;
+  const team = row.team_id ?? row.team_name_abbr ?? row.team ?? null;
+  const league = row.comp_name_abbr ?? row.lg_id ?? row.league ?? null;
+  return {
+    player_id: playerId,
+    season,
+    team,
+    league,
+    games: row.games != null ? Number(row.games) : null,
+    games_started: row.games_started != null ? Number(row.games_started) : null,
+    pts_per_g: row.pts_per_g != null ? Number(row.pts_per_g) : null,
+    trb_per_g: row.trb_per_g != null ? Number(row.trb_per_g) : null,
+    ast_per_g: row.ast_per_g != null ? Number(row.ast_per_g) : null,
+    stl_per_g: row.stl_per_g != null ? Number(row.stl_per_g) : null,
+    blk_per_g: row.blk_per_g != null ? Number(row.blk_per_g) : null,
+    fg_pct: row.fg_pct != null ? Number(row.fg_pct) : null,
+    fg3_pct: row.fg3_pct != null ? Number(row.fg3_pct) : null,
+    ft_pct: row.ft_pct != null ? Number(row.ft_pct) : null,
+  };
+}
+
+/** Insert all season stats for a player into player_stats. Replaces existing rows for this player_id. */
+export async function upsertPlayerStats(playerId, perGameRows) {
+  if (!perGameRows || perGameRows.length === 0) return;
+  await query('DELETE FROM player_stats WHERE player_id = $1', [playerId]);
+  const cols = 'player_id, season, team, league, games, games_started, pts_per_g, trb_per_g, ast_per_g, stl_per_g, blk_per_g, fg_pct, fg3_pct, ft_pct';
+  const placeholders = [];
+  const values = [];
+  let i = 0;
+  for (const row of perGameRows) {
+    const s = mapPerGameToStats(playerId, row);
+    if (s.season == null) continue;
+    if (!/^\d{4}(-\d{2})?$/.test(String(s.season))) continue;
+    placeholders.push(
+      `($${i + 1}, $${i + 2}, $${i + 3}, $${i + 4}, $${i + 5}, $${i + 6}, $${i + 7}, $${i + 8}, $${i + 9}, $${i + 10}, $${i + 11}, $${i + 12}, $${i + 13}, $${i + 14})`
+    );
+    values.push(
+      s.player_id, s.season, s.team, s.league, s.games, s.games_started,
+      s.pts_per_g, s.trb_per_g, s.ast_per_g, s.stl_per_g, s.blk_per_g,
+      s.fg_pct, s.fg3_pct, s.ft_pct
+    );
+    i += 14;
+  }
+  if (placeholders.length === 0) return;
+  await query(
+    `INSERT INTO player_stats (${cols}) VALUES ${placeholders.join(', ')}`,
+    values
+  );
 }
