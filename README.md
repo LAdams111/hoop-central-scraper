@@ -49,7 +49,7 @@ With a Postgres database (e.g. in the same Railway project), the API can store e
 
 ### 1. Create the table (once)
 
-In your Railway Postgres (Query tab or `psql`), run the SQL in **`db/schema.sql`** to create the `players` table.
+In your Railway Postgres (Query tab or `psql`), run the SQL in **`db/schema.sql`** to create the `player_info` table.
 
 ### 2. Set `DATABASE_URL`
 

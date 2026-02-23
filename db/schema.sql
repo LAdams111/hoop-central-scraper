@@ -1,7 +1,7 @@
--- Run this once on your Railway Postgres to create the players table.
+-- Run this once on your Railway Postgres to create the player_info table.
 -- You can run it via Railway CLI or in the Postgres query tab.
 
-CREATE TABLE IF NOT EXISTS players (
+CREATE TABLE IF NOT EXISTS player_info (
   id SERIAL PRIMARY KEY,
   player_id TEXT NOT NULL UNIQUE,
   name TEXT,
@@ -10,12 +10,9 @@ CREATE TABLE IF NOT EXISTS players (
   height TEXT,
   weight TEXT,
   summary JSONB DEFAULT '{}',
-  per_game JSONB DEFAULT '[]',
-  url TEXT,
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  raw_data JSONB DEFAULT '{}'
 );
 
-CREATE INDEX IF NOT EXISTS idx_players_player_id ON players(player_id);
-CREATE INDEX IF NOT EXISTS idx_players_name ON players(name);
-CREATE INDEX IF NOT EXISTS idx_players_team ON players(team);
-CREATE INDEX IF NOT EXISTS idx_players_updated_at ON players(updated_at);
+CREATE INDEX IF NOT EXISTS idx_player_info_player_id ON player_info(player_id);
+CREATE INDEX IF NOT EXISTS idx_player_info_name ON player_info(name);
+CREATE INDEX IF NOT EXISTS idx_player_info_team ON player_info(team);

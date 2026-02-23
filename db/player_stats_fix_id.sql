@@ -7,7 +7,7 @@ ALTER TABLE player_stats DROP COLUMN IF EXISTS id;
 
 -- Step 2: Add id back as auto-generated primary key (pick one)
 
--- Option A: SERIAL PRIMARY KEY (classic, same as "Player info")
+-- Option A: SERIAL PRIMARY KEY (classic, same as player_info)
 ALTER TABLE player_stats ADD COLUMN id SERIAL PRIMARY KEY;
 
 -- Option B (alternative): IDENTITY primary key (PostgreSQL 10+, SQL standard)
