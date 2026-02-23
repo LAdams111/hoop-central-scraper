@@ -55,11 +55,16 @@ export async function upsertPlayer(row) {
       params
     );
   }
-  // Also write one row per season into player_stats (don't fail Player info if this errors)
+  // Write one row per season into player_stats (same player_id we just upserted)
+  const playerIdUsed = row.playerId;
   try {
-    await upsertPlayerStats(row.playerId, row.perGame || []);
+    const rowsInserted = await upsertPlayerStats(playerIdUsed, row.perGame || []);
+    if (rowsInserted > 0) {
+      console.log(`player_stats: inserted ${rowsInserted} rows for player_id=${playerIdUsed}`);
+    }
   } catch (err) {
-    console.error(`player_stats write failed for ${row.playerId}:`, err.message);
+    console.error(`player_stats INSERT failed for player_id=${playerIdUsed}:`, err.message);
+    console.error('Full error:', err);
   }
 }
 
@@ -127,12 +132,16 @@ function mapPerGameToStats(playerId, row) {
 // Table name: Railway may create "player_stats" (lowercase) or "Player stats" (with space)
 const PLAYER_STATS_TABLE = process.env.PLAYER_STATS_TABLE || 'player_stats';
 
-/** Insert all season stats for a player into player_stats. Replaces existing rows for this player_id. */
+// Column names must match your player_stats table exactly (id is SERIAL, omit from INSERT).
+// If your table has stl_per_c instead of stl_per_g, set PLAYER_STATS_STL_COLUMN=stl_per_c
+const STL_COL = process.env.PLAYER_STATS_STL_COLUMN || 'stl_per_g';
+const PLAYER_STATS_COLS = `player_id, season, team, league, games, games_started, pts_per_g, trb_per_g, ast_per_g, ${STL_COL}, blk_per_g, fg_pct, fg3_pct, ft_pct`;
+
+/** Insert all season stats for a player into player_stats. One row per season. Returns number of rows inserted. */
 export async function upsertPlayerStats(playerId, perGameRows) {
-  if (!perGameRows || perGameRows.length === 0) return;
+  if (!perGameRows || perGameRows.length === 0) return 0;
   const table = PLAYER_STATS_TABLE.includes(' ') ? `"${PLAYER_STATS_TABLE}"` : PLAYER_STATS_TABLE;
   await query(`DELETE FROM ${table} WHERE player_id = $1`, [playerId]);
-  const cols = 'player_id, season, team, league, games, games_started, pts_per_g, trb_per_g, ast_per_g, stl_per_g, blk_per_g, fg_pct, fg3_pct, ft_pct';
   const placeholders = [];
   const values = [];
   let i = 0;
@@ -151,9 +160,13 @@ export async function upsertPlayerStats(playerId, perGameRows) {
     );
     i += 14;
   }
-  if (placeholders.length === 0) return;
+  if (placeholders.length === 0) {
+    console.warn(`player_stats: no season rows to insert for player_id=${playerId} (perGame count=${perGameRows.length})`);
+    return 0;
+  }
   await query(
-    `INSERT INTO ${table} (${cols}) VALUES ${placeholders.join(', ')}`,
+    `INSERT INTO ${table} (${PLAYER_STATS_COLS}) VALUES ${placeholders.join(', ')}`,
     values
   );
+  return placeholders.length;
 }
