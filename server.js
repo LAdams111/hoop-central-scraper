@@ -21,6 +21,22 @@ async function fetchHtml(url) {
   return res.text();
 }
 
+/** Fetch with retry on 429 (Too Many Requests). Exponential backoff: 5s, 10s, 20s. */
+async function fetchHtmlWithRetry(url, maxRetries = 3) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
+    if (res.status === 429) {
+      if (attempt === maxRetries) throw new Error(`HTTP 429: ${url} (rate limited after ${maxRetries} retries)`);
+      const waitMs = [5000, 10000, 20000][attempt] || 20000;
+      console.warn(`429 on ${url}, waiting ${waitMs / 1000}s before retry ${attempt + 1}/${maxRetries}`);
+      await new Promise((r) => setTimeout(r, waitMs));
+      continue;
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${url}`);
+    return res.text();
+  }
+}
+
 // --- Optional Postgres (for /api/players and sync) ---
 let db = null;
 if (process.env.DATABASE_URL || process.env.POSTGRES_URL) {
@@ -46,15 +62,15 @@ async function runSync() {
   if (syncStatus.running) return;
   syncStatus = { running: true, processed: 0, total: 0, errors: 0, message: 'Fetching player list...' };
   try {
-    const list = await getAllPlayerIdsFromIndex(fetchHtml, parsePlayersIndex);
+    const list = await getAllPlayerIdsFromIndex(fetchHtmlWithRetry, parsePlayersIndex);
     syncStatus.total = list.length;
-    syncStatus.message = `Syncing ${list.length} players in batches of 100...`;
+    syncStatus.message = `Syncing ${list.length} players (20 at a time, 2s delay)...`;
     const result = await syncPlayersInBatches(
       list,
-      fetchHtml,
+      fetchHtmlWithRetry,
       parsePlayerPage,
       db.upsertPlayer,
-      { batchSize: 100, delayMs: 800, onProgress: (p) => { syncStatus.processed = p.processed; syncStatus.errors = p.errors; } }
+      { batchSize: 20, delayMs: 2000, onProgress: (p) => { syncStatus.processed = p.processed; syncStatus.errors = p.errors; } }
     );
     syncStatus.message = `Done. Synced ${result.processed}, ${result.errors} errors.`;
   } catch (e) {

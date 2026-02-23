@@ -1,12 +1,13 @@
 /**
  * Fetches all NBA player IDs from Basketball Reference index pages (a-z),
- * then fetches each player's page in batches of 100 and upserts into Postgres.
+ * then fetches each player's page in small batches with delay to avoid 429.
  */
 
 const BASE = 'https://www.basketball-reference.com';
 const USER_AGENT = 'Mozilla/5.0 (compatible; BasketballStatsBot/1.0)';
-const BATCH_SIZE = 100;
-const DELAY_MS = 800;
+const BATCH_SIZE = 20;
+const DELAY_MS = 2000;
+const INDEX_DELAY_MS = 1500;
 
 async function fetchHtml(url) {
   const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
@@ -27,7 +28,7 @@ export async function getAllPlayerIdsFromIndex(fetchHtmlFn, parsePlayersIndex) {
       const html = await fetchHtmlFn(url);
       const players = parsePlayersIndex(html, letter);
       all.push(...players);
-      await sleep(DELAY_MS);
+      await sleep(INDEX_DELAY_MS);
     } catch (e) {
       console.warn(`Failed to fetch letter ${letter}:`, e.message);
     }
