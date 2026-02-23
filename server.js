@@ -21,13 +21,13 @@ async function fetchHtml(url) {
   return res.text();
 }
 
-/** Fetch with retry on 429 (Too Many Requests). Exponential backoff: 5s, 10s, 20s. */
+/** Fetch with retry on 429. Longer backoff: 15s, 30s, 60s. */
 async function fetchHtmlWithRetry(url, maxRetries = 3) {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
     if (res.status === 429) {
       if (attempt === maxRetries) throw new Error(`HTTP 429: ${url} (rate limited after ${maxRetries} retries)`);
-      const waitMs = [5000, 10000, 20000][attempt] || 20000;
+      const waitMs = [15000, 30000, 60000][attempt] || 60000;
       console.warn(`429 on ${url}, waiting ${waitMs / 1000}s before retry ${attempt + 1}/${maxRetries}`);
       await new Promise((r) => setTimeout(r, waitMs));
       continue;
@@ -64,13 +64,13 @@ async function runSync() {
   try {
     const list = await getAllPlayerIdsFromIndex(fetchHtmlWithRetry, parsePlayersIndex);
     syncStatus.total = list.length;
-    syncStatus.message = `Syncing ${list.length} players (20 at a time, 2s delay)...`;
+    syncStatus.message = `Syncing ${list.length} players (8 at a time, 5s delay)...`;
     const result = await syncPlayersInBatches(
       list,
       fetchHtmlWithRetry,
       parsePlayerPage,
       db.upsertPlayer,
-      { batchSize: 20, delayMs: 2000, onProgress: (p) => { syncStatus.processed = p.processed; syncStatus.errors = p.errors; } }
+      { batchSize: 8, delayMs: 5000, onProgress: (p) => { syncStatus.processed = p.processed; syncStatus.errors = p.errors; } }
     );
     syncStatus.message = `Done. Synced ${result.processed}, ${result.errors} errors.`;
   } catch (e) {

@@ -5,9 +5,9 @@
 
 const BASE = 'https://www.basketball-reference.com';
 const USER_AGENT = 'Mozilla/5.0 (compatible; BasketballStatsBot/1.0)';
-const BATCH_SIZE = 20;
-const DELAY_MS = 2000;
-const INDEX_DELAY_MS = 1500;
+const BATCH_SIZE = 8;
+const DELAY_MS = 5000;
+const INDEX_DELAY_MS = 3000;
 
 async function fetchHtml(url) {
   const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
