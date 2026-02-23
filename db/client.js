@@ -23,7 +23,7 @@ export async function query(text, params) {
   return p.query(text, params);
 }
 
-// Table: player_info (columns: id, player_id, name, team, position, height, weight, summary, raw_data).
+// Table: player_info (includes jersey_number, birth_date, age, hometown).
 // raw_data stores { per_game, url } as JSON.
 
 /** Upsert one player into player_info. Works with or without UNIQUE(player_id). */
@@ -36,6 +36,10 @@ export async function upsertPlayer(row) {
     row.position ?? null,
     row.height ?? null,
     row.weight ?? null,
+    row.jersey_number ?? null,
+    row.birth_date ?? null,
+    row.age != null ? row.age : null,
+    row.hometown ?? null,
     JSON.stringify(row.summary || {}),
     JSON.stringify(rawData),
   ];
@@ -45,12 +49,12 @@ export async function upsertPlayer(row) {
   );
   if (existing.rows.length > 0) {
     await query(
-      'UPDATE player_info SET name = $2, team = $3, position = $4, height = $5, weight = $6, summary = $7::jsonb, raw_data = $8::jsonb WHERE player_id = $1',
+      'UPDATE player_info SET name = $2, team = $3, position = $4, height = $5, weight = $6, jersey_number = $7, birth_date = $8::date, age = $9, hometown = $10, summary = $11::jsonb, raw_data = $12::jsonb WHERE player_id = $1',
       params
     );
   } else {
     await query(
-      'INSERT INTO player_info (player_id, name, team, position, height, weight, summary, raw_data) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb)',
+      'INSERT INTO player_info (player_id, name, team, position, height, weight, jersey_number, birth_date, age, hometown, summary, raw_data) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::date, $9, $10, $11::jsonb, $12::jsonb)',
       params
     );
   }
@@ -70,7 +74,7 @@ export async function upsertPlayer(row) {
 /** Get all players (optional pagination). Returns shape with per_game and url from raw_data. */
 export async function getPlayers(limit = 5000, offset = 0) {
   const r = await query(
-    'SELECT player_id, name, team, position, height, weight, summary, raw_data FROM player_info ORDER BY name LIMIT $1 OFFSET $2',
+    'SELECT player_id, name, team, position, height, weight, jersey_number, birth_date, age, hometown, summary, raw_data FROM player_info ORDER BY name LIMIT $1 OFFSET $2',
     [limit, offset]
   );
   return r.rows.map((row) => ({
@@ -84,7 +88,7 @@ export async function getPlayers(limit = 5000, offset = 0) {
 /** Get one player by Basketball Reference player_id. */
 export async function getPlayerByPlayerId(playerId) {
   const r = await query(
-    'SELECT player_id, name, team, position, height, weight, summary, raw_data FROM player_info WHERE player_id = $1',
+    'SELECT player_id, name, team, position, height, weight, jersey_number, birth_date, age, hometown, summary, raw_data FROM player_info WHERE player_id = $1',
     [playerId]
   );
   const row = r.rows[0];

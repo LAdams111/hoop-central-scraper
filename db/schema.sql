@@ -9,6 +9,10 @@ CREATE TABLE IF NOT EXISTS player_info (
   position TEXT,
   height TEXT,
   weight TEXT,
+  jersey_number TEXT,
+  birth_date DATE,
+  age INTEGER,
+  hometown TEXT,
   summary JSONB DEFAULT '{}',
   raw_data JSONB DEFAULT '{}'
 );
