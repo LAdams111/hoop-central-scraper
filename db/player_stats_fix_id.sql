@@ -1,16 +1,22 @@
--- Run this in Railway Postgres (Query tab) if player_stats inserts fail
--- because "id" rejects NULL. This makes id auto-generated like "Player info".
--- The scraper does NOT send "id" in INSERTs, so Postgres must generate it.
+-- Migration: Fix player_stats.id so it auto-generates (stops "null value in column id" on INSERT).
+-- Run this once in Railway Postgres → Database → Query.
+-- Table name: use "Player stats" (with quotes) if your table has a space in the name.
 
--- Option 1: If id exists but has no default (integer, not null, no default):
-CREATE SEQUENCE IF NOT EXISTS player_stats_id_seq;
-ALTER TABLE player_stats ALTER COLUMN id SET DEFAULT nextval('player_stats_id_seq');
-ALTER SEQUENCE player_stats_id_seq OWNED BY player_stats.id;
-SELECT setval('player_stats_id_seq', COALESCE((SELECT MAX(id) FROM player_stats), 1));
+-- Step 1: Drop the existing id column (any existing data in id is lost; other columns unchanged)
+ALTER TABLE player_stats DROP COLUMN IF EXISTS id;
 
--- Option 2: If the table has no id column yet, add it as SERIAL:
--- ALTER TABLE player_stats ADD COLUMN id SERIAL PRIMARY KEY;
+-- Step 2: Add id back as auto-generated primary key (pick one)
 
--- Option 3: If id is the wrong type or you prefer a clean SERIAL column:
--- ALTER TABLE player_stats DROP COLUMN IF EXISTS id;
--- ALTER TABLE player_stats ADD COLUMN id SERIAL PRIMARY KEY;
+-- Option A: SERIAL PRIMARY KEY (classic, same as "Player info")
+ALTER TABLE player_stats ADD COLUMN id SERIAL PRIMARY KEY;
+
+-- Option B (alternative): IDENTITY primary key (PostgreSQL 10+, SQL standard)
+-- ALTER TABLE player_stats ADD COLUMN id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY;
+
+-- After this, INSERTs that omit id will get an auto-generated id and inserts will succeed.
+
+-- ---------------------------------------------------------------------------
+-- If your table is named "Player stats" (with a space), run this instead:
+-- ---------------------------------------------------------------------------
+-- ALTER TABLE "Player stats" DROP COLUMN IF EXISTS id;
+-- ALTER TABLE "Player stats" ADD COLUMN id SERIAL PRIMARY KEY;
