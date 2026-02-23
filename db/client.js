@@ -55,8 +55,12 @@ export async function upsertPlayer(row) {
       params
     );
   }
-  // Also write one row per season into player_stats
-  await upsertPlayerStats(row.playerId, row.perGame || []);
+  // Also write one row per season into player_stats (don't fail Player info if this errors)
+  try {
+    await upsertPlayerStats(row.playerId, row.perGame || []);
+  } catch (err) {
+    console.error(`player_stats write failed for ${row.playerId}:`, err.message);
+  }
 }
 
 /** Get all players (optional pagination). Returns shape with per_game and url from raw_data. */
@@ -99,7 +103,7 @@ export async function countPlayers() {
 
 /** Map scraped per_game row to player_stats columns. */
 function mapPerGameToStats(playerId, row) {
-  const season = row.year_id ?? row.season ?? null;
+  const season = row.season ?? row.year_id ?? null;
   const team = row.team_id ?? row.team_name_abbr ?? row.team ?? null;
   const league = row.comp_name_abbr ?? row.lg_id ?? row.league ?? null;
   return {
@@ -120,18 +124,23 @@ function mapPerGameToStats(playerId, row) {
   };
 }
 
+// Table name: Railway may create "player_stats" (lowercase) or "Player stats" (with space)
+const PLAYER_STATS_TABLE = process.env.PLAYER_STATS_TABLE || 'player_stats';
+
 /** Insert all season stats for a player into player_stats. Replaces existing rows for this player_id. */
 export async function upsertPlayerStats(playerId, perGameRows) {
   if (!perGameRows || perGameRows.length === 0) return;
-  await query('DELETE FROM player_stats WHERE player_id = $1', [playerId]);
+  const table = PLAYER_STATS_TABLE.includes(' ') ? `"${PLAYER_STATS_TABLE}"` : PLAYER_STATS_TABLE;
+  await query(`DELETE FROM ${table} WHERE player_id = $1`, [playerId]);
   const cols = 'player_id, season, team, league, games, games_started, pts_per_g, trb_per_g, ast_per_g, stl_per_g, blk_per_g, fg_pct, fg3_pct, ft_pct';
   const placeholders = [];
   const values = [];
   let i = 0;
   for (const row of perGameRows) {
     const s = mapPerGameToStats(playerId, row);
-    if (s.season == null) continue;
-    if (!/^\d{4}(-\d{2})?$/.test(String(s.season))) continue;
+    const seasonStr = s.season != null ? String(s.season).trim() : '';
+    if (!seasonStr) continue;
+    if (!/^\d{4}(-\d{2})?$/.test(seasonStr) && !/^(19|20)\d{2}/.test(seasonStr)) continue;
     placeholders.push(
       `($${i + 1}, $${i + 2}, $${i + 3}, $${i + 4}, $${i + 5}, $${i + 6}, $${i + 7}, $${i + 8}, $${i + 9}, $${i + 10}, $${i + 11}, $${i + 12}, $${i + 13}, $${i + 14})`
     );
@@ -144,7 +153,7 @@ export async function upsertPlayerStats(playerId, perGameRows) {
   }
   if (placeholders.length === 0) return;
   await query(
-    `INSERT INTO player_stats (${cols}) VALUES ${placeholders.join(', ')}`,
+    `INSERT INTO ${table} (${cols}) VALUES ${placeholders.join(', ')}`,
     values
   );
 }

@@ -79,6 +79,10 @@ Your HoopCentral (or other) frontend should call the scraper API to get data fro
 
 Use your scraper’s base URL (e.g. `https://your-scraper.up.railway.app`) as `baseUrl` when calling these from the main site.
 
+### 5. player_stats table (season-level stats)
+
+The scraper also writes **one row per season** into a `player_stats` table (columns: `player_id`, `season`, `team`, `league`, `games`, `games_started`, `pts_per_g`, `trb_per_g`, `ast_per_g`, `stl_per_g`, `blk_per_g`, `fg_pct`, `fg3_pct`, `ft_pct`). Create this table in Postgres with those column names. If your table name has a space (e.g. "Player stats"), set **`PLAYER_STATS_TABLE=Player stats`** in Railway Variables. If `player_stats` stays empty, check the scraper logs for `player_stats write failed` errors.
+
 ## API endpoints
 
 | Method | Endpoint | Description |
