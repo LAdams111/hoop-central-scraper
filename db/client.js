@@ -26,36 +26,56 @@ export async function query(text, params) {
 // Table: player_info (includes jersey_number, birth_date, age, hometown).
 // raw_data stores { per_game, url } as JSON.
 
-/** Upsert one player into player_info. Works with or without UNIQUE(player_id). */
+/** Upsert one player into player_info. No duplicate inserts; UPDATE uses COALESCE for birth_date, hometown, age so missing values do not overwrite existing. */
 export async function upsertPlayer(row) {
   const rawData = { per_game: row.perGame || [], url: row.url || null };
-  const params = [
-    row.playerId,
-    row.name ?? null,
-    row.team ?? null,
-    row.position ?? null,
-    row.height ?? null,
-    row.weight ?? null,
-    row.jersey_number ?? null,
-    row.birth_date ?? null,
-    row.age != null ? row.age : null,
-    row.hometown ?? null,
-    JSON.stringify(row.summary || {}),
-    JSON.stringify(rawData),
-  ];
   const existing = await query(
     'SELECT id FROM player_info WHERE player_id = $1',
     [row.playerId]
   );
   if (existing.rows.length > 0) {
+    const id = existing.rows[0].id;
+    const updateParams = [
+      row.playerId,
+      row.name ?? null,
+      row.team ?? null,
+      row.position ?? null,
+      row.height ?? null,
+      row.weight ?? null,
+      row.jersey_number ?? null,
+      JSON.stringify(row.summary || {}),
+      JSON.stringify(rawData),
+    ];
     await query(
-      'UPDATE player_info SET name = $2, team = $3, position = $4, height = $5, weight = $6, jersey_number = $7, birth_date = $8::date, age = $9, hometown = $10, summary = $11::jsonb, raw_data = $12::jsonb WHERE player_id = $1',
-      params
+      'UPDATE player_info SET name = $2, team = $3, position = $4, height = $5, weight = $6, jersey_number = $7, summary = $8::jsonb, raw_data = $9::jsonb WHERE player_id = $1',
+      updateParams
+    );
+    await query(
+      `UPDATE player_info
+SET birth_date = COALESCE($1::date, birth_date),
+    hometown = COALESCE($2, hometown),
+    age = COALESCE($3, age)
+WHERE id = $4`,
+      [row.birth_date ?? null, row.hometown ?? null, row.age != null ? row.age : null, id]
     );
   } else {
+    const insertParams = [
+      row.playerId,
+      row.name ?? null,
+      row.team ?? null,
+      row.position ?? null,
+      row.height ?? null,
+      row.weight ?? null,
+      row.jersey_number ?? null,
+      row.birth_date ?? null,
+      row.age != null ? row.age : null,
+      row.hometown ?? null,
+      JSON.stringify(row.summary || {}),
+      JSON.stringify(rawData),
+    ];
     await query(
       'INSERT INTO player_info (player_id, name, team, position, height, weight, jersey_number, birth_date, age, hometown, summary, raw_data) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::date, $9, $10, $11::jsonb, $12::jsonb)',
-      params
+      insertParams
     );
   }
   // Write one row per season into player_stats (same player_id we just upserted)

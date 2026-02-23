@@ -23,14 +23,15 @@ function parseBornDate(str) {
   return null;
 }
 
-/** Age in years from YYYY-MM-DD birth date. */
-function ageFromBirthDate(isoDate) {
-  if (!isoDate || !/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return null;
-  const [y, m, d] = isoDate.split('-').map(Number);
-  const today = new Date();
-  let age = today.getFullYear() - y;
-  if (today.getMonth() + 1 < m || (today.getMonth() + 1 === m && today.getDate() < d)) age -= 1;
-  return age >= 0 ? age : null;
+/** Format birth date to YYYY-MM-DD and calculate age. Use before saving. */
+function formatBirthDateAndAge(birthDate) {
+  const formattedDate = birthDate
+    ? new Date(birthDate).toISOString().split('T')[0]
+    : null;
+  const calculatedAge = formattedDate
+    ? Math.floor((new Date() - new Date(formattedDate)) / (365.25 * 24 * 60 * 60 * 1000))
+    : null;
+  return { formattedDate, calculatedAge };
 }
 
 /**
@@ -93,8 +94,8 @@ export function parsePlayerPage(html, playerId) {
   const noMatch = bodyText.match(/\bNo\.\s*(\d{1,3})\b/i) || bodyText.match(/#(\d{1,3})\b/);
   if (noMatch) jerseyNumber = noMatch[1];
 
-  // Age from birth_date (current age as of today)
-  const age = birthDate ? ageFromBirthDate(birthDate) : null;
+  // YYYY-MM-DD and age for saving (do not overwrite existing with null when updating)
+  const { formattedDate, calculatedAge } = formatBirthDateAndAge(birthDate || null);
 
   // Summary stats (current season + career) from the summary section
   const summary = {};
@@ -141,10 +142,10 @@ export function parsePlayerPage(html, playerId) {
     position,
     height,
     weight,
-    birth_date: birthDate ?? null,
-    hometown: hometown ?? null,
+    birth_date: formattedDate,
+    hometown: hometown != null ? String(hometown) : null,
     jersey_number: jerseyNumber ?? null,
-    age: age != null ? age : null,
+    age: calculatedAge,
     summary,
     perGame,
     url: `${BASE}/players/${playerId.charAt(0)}/${playerId}.html`,
