@@ -72,22 +72,31 @@ export function parsePlayerPage(html, playerId) {
     }
   }
 
-  // Birth date: span[itemprop="birthDate"] or "Born: Month Day, Year in ..."
-  let birthDate = $('span[itemprop="birthDate"]').first().attr('content') || $('span[itemprop="birthDate"]').first().text().trim() || null;
+  // Birth date & hometown: BR uses #necro-birth [data-birth], JSON-LD, or "Born: ... in ..." in a <p>
+  let birthDate = $('#necro-birth').attr('data-birth') || null;
   let hometown = null;
-  const bornMatch = bodyText.match(/Born:\s*([^ in]+(?:\s+\d{1,2},?\s+\d{4})?)\s*(?:in\s+(.+?))?(?:\s*[▪•]|$|High\s|College|Draft)/i);
+  if (!birthDate) {
+    birthDate = $('span[itemprop="birthDate"]').first().attr('content') || $('span[itemprop="birthDate"]').first().text().trim() || null;
+  }
+  const jsonLdScript = $('script[type="application/ld+json"]').first().html();
+  if (jsonLdScript) {
+    const birthInJson = jsonLdScript.match(/"birthDate"\s*:\s*"([^"]+)"/);
+    if (birthInJson) birthDate = birthInJson[1].trim();
+    const placeInJson = jsonLdScript.match(/"birthPlace"\s*:\s*"([^"]+)"/);
+    if (placeInJson) hometown = placeInJson[1].trim();
+  }
+  const normalizedBody = bodyText.replace(/\s+/g, ' ').trim();
+  const bornMatch = normalizedBody.match(/Born:\s*([^in]+?\d{1,2},?\s*\d{4})\s*(?:in\s+([^▪•]+?))?(?=\s+[A-Z][a-z]*:|\s*[▪•]|$)/i);
   if (bornMatch) {
-    const datePart = bornMatch[1].trim();
-    if (!birthDate && datePart) {
-      const parsed = parseBornDate(datePart);
-      birthDate = parsed; // ISO YYYY-MM-DD or null
-    }
-    if (bornMatch[2]) hometown = bornMatch[2].replace(/\s*[▪•].*$/i, '').trim() || null;
+    const datePart = bornMatch[1].replace(/\s+/g, ' ').trim();
+    if (!birthDate && datePart) birthDate = parseBornDate(datePart);
+    if (!hometown && bornMatch[2]) hometown = bornMatch[2].replace(/\s+/g, ' ').trim();
   }
   if (birthDate && !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
     const parsed = parseBornDate(birthDate);
     if (parsed) birthDate = parsed;
   }
+  if (hometown) hometown = hometown.replace(/,?\s*United States\s*$/i, '').trim() || hometown;
 
   // Jersey number: "No. 23" or "#23" in intro text
   let jerseyNumber = null;
