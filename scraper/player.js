@@ -98,10 +98,15 @@ export function parsePlayerPage(html, playerId) {
   }
   if (hometown) hometown = hometown.replace(/,?\s*United States\s*$/i, '').trim() || hometown;
 
-  // Jersey number: "No. 23" or "#23" in intro text
+  // Jersey number: BR shows it in .uni_holder (SVG text). First number can be a rank; use second when multiple.
   let jerseyNumber = null;
-  const noMatch = bodyText.match(/\bNo\.\s*(\d{1,3})\b/i) || bodyText.match(/#(\d{1,3})\b/);
-  if (noMatch) jerseyNumber = noMatch[1];
+  const uniTexts = $('.uni_holder').first().find('text').map((_, el) => $(el).text().trim()).get().filter((t) => /^\d{1,3}$/.test(t));
+  if (uniTexts.length >= 2) jerseyNumber = uniTexts[1];
+  else if (uniTexts.length === 1) jerseyNumber = uniTexts[0];
+  if (!jerseyNumber) {
+    const noMatch = bodyText.match(/\bNo\.\s*(\d{1,3})\b/i) || bodyText.match(/#(\d{1,3})\b/);
+    if (noMatch) jerseyNumber = noMatch[1];
+  }
 
   // YYYY-MM-DD and age for saving (do not overwrite existing with null when updating)
   const { formattedDate, calculatedAge } = formatBirthDateAndAge(birthDate || null);
